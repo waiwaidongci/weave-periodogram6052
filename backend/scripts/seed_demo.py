@@ -2,10 +2,11 @@ import json
 import numpy as np
 from sqlalchemy import select,func
 from src.config.database import Base,engine,SessionLocal
-from src.models import User,TraverseStudy,TraversePoint,FrequencyPlan,SpectrumRun,WeaveNote
+from src.models import User,TraverseStudy,TraversePoint,FrequencyPlan,SpectrumRun,WeaveNote,PointVersion
 from src.utils.security import hash_password
 from src.utils.serialize import row
 from src.services.analysis import analyze
+from src.services.revision import ensure_seed_version
 
 def seed():
  Base.metadata.create_all(engine)
@@ -21,6 +22,11 @@ def seed():
     db.commit()
    nameplan=f'LD{index+1}预设10至90毫米频率计划'
    if not db.scalar(select(FrequencyPlan).where(FrequencyPlan.name==nameplan)):db.add(FrequencyPlan(study_id=study.id,name=nameplan,protocol='看数据前固定周期范围10..90mm，201等频网格；不按测试结果选范围。',min_frequency=1/90,max_frequency=1/10,grid_size=201,frequencies=np.linspace(1/90,1/10,201).tolist(),permutations=199,seed=234,created_by='analyst@lingdu.demo'));db.commit()
+  # 为既有测线回填首个已发布版本；已存在版本时幂等跳过，研究数据与批准说明原样保留
+  for s in db.scalars(select(TraverseStudy)).all():
+   pts=[row(x) for x in db.scalars(select(TraversePoint).where(TraversePoint.study_id==s.id).order_by(TraversePoint.position))]
+   ensure_seed_version(db,s,pts,'seed@lingdu.demo')
+  db.commit()
   run=db.scalar(select(SpectrumRun).where(SpectrumRun.name=='A织片冻结网格谱峰研究'))
   if not run:
    study=db.scalar(select(TraverseStudy).where(TraverseStudy.name==names[0]));points=[row(x) for x in db.scalars(select(TraversePoint).where(TraversePoint.study_id==study.id).order_by(TraversePoint.position))];plan=db.scalar(select(FrequencyPlan).where(FrequencyPlan.study_id==study.id));planrow=row(plan);result=analyze(row(study),points,planrow);run=SpectrumRun(study_id=study.id,plan_id=plan.id,name='A织片冻结网格谱峰研究',source_snapshot={'study':row(study),'points':points},plan_snapshot=planrow,status='completed',result=result,peak_frequency=result['best']['frequency'],max_power=result['observed_max_power'],global_p=result['global_test']['global_p'],created_by='analyst@lingdu.demo');db.add(run);db.commit()

@@ -32,7 +32,9 @@ Compose恰好frontend/backend/worker/db/redis五服务，各有healthcheck。Ngi
 
 1. 09:00，林纬打开“谱峰总览”，先区分空间周期证据和制造原因。
 2. 在“不等距测线”核对 `LD-34A 十八毫米纹理` / `ld-traverse-1-202611.csv`，如 `LD1-P001` 的位置mm和厚度mm。保留实际间距，不插成等距输入。
-3. 导入独立织片JSON或修订厚度；重复位置会拒绝。每条4–240点、跨度≤10000mm，已有任务保留提交时数据快照。
+3. 导入独立织片JSON或修订厚度；重复位置会拒绝。每条4–240点、跨度≤10000mm，已有任务保留提交时数据快照。导入即发布该测线首个完整底稿版本v1。
+3a. 多台测厚仪离线修订同一测线时，先下载带版本号的底稿CSV，在本地改完后以批次JSON回传（批次号+设备号+`base_version`+全量测点）。无交叠改动自动合并发布新版本；同点异值整批拒绝，响应与批次台账列出每个冲突点的底稿值/回传值/当前值；位置只能在测点之间整组合法互换，占用空位或产生重复位置拒绝；同批次号重复提交且内容一致时回显原结果、不产生新版本，同号异内容409拒绝。旧的单测点PATCH修订入口封装为同引擎批次，遵守完全相同的规则。
+3b. 回传与排队并发时按测线串行：每份谱研究在排队瞬间锁定并复制一个完整已发布版本（`source_version`写入运行与快照），失败批次不留半成品测点或半成品版本。页面可下载任一版本底稿、查看任意两版差异、浏览批次台账；既有研究、冻结运行与批准说明保持原样。
 4. 在“频率计划”预先声明周期范围10–90mm：fmin=1/90、fmax=.1、201等频点、B199、seed234。计划冻结后不编辑；看过谱峰才改范围应作为探索新研究，需独立资料核对。
 5. 从该测线的冻结计划排队。提交时源点和计划都复制进run，worker只使用这两份快照。
 6. A研究120点/201频点，选中18mm、功率.933678718814。全网格null最大值没有达到观测值，p=(0+1)/(199+1)=.005，而不是对挑出的频率报单频p。
@@ -56,7 +58,7 @@ cos/sin列各减其均值形成A，QR分解A=QR。对中心化厚度y_c，解释
 
 ## 实体、界面与校验
 
-79个有职责的Python/TS/TSX/CSS文件（不含空包、依赖和dist）。五实体TraverseStudy → TraversePoint → FrequencyPlan → SpectrumRun → WeaveNote贯穿ORM/schema/service/routes、前端API/store和六页：谱峰总览、不等距测线、频率计划、完整谱与全局p、织片补测、过程留痕。
+79个有职责的Python/TS/TSX/CSS文件（不含空包、依赖和dist）。五实体TraverseStudy → TraversePoint → FrequencyPlan → SpectrumRun → WeaveNote贯穿ORM/schema/service/routes、前端API/store和六页：谱峰总览、不等距测线、频率计划、完整谱与全局p、织片补测、过程留痕。离线修订另增PointVersion（不可变全量发布快照，(study_id,version)唯一）与PointRevisionBatch（(study_id,batch_no)唯一，记录基准版本、内容sha256、接纳/拒绝状态与冲突明细）；SpectrumRun增加`source_version`，排队时复制对应PointVersion快照。回传临界区按测线加进程锁，PostgreSQL再以`with_for_update`行锁和唯一约束跨进程兜底。
 
 前端 `src/{api,stores,types,components/common,hooks,pages,router,utils,constants}`；后端 `src/{routes,controllers,services,models,schemas,middlewares,utils,constants,config}`，另scripts/seed_demo.py与migrations/。SpectrumPlot、TracePlot、PeakSummary、RunList在多页复用，PermutationPanel只画后端实际null频数；useTask/useRoute和format处理交互。React挂载id=root与createRoot一致。
 

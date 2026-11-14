@@ -1,0 +1,11 @@
+-- ORM metadata creates schema; no production migration runner is claimed.
+-- Offline multi-device revision (versioned point batches):
+-- point_versions(study_id, version UNIQUE(study_id,version), batch_id NULLABLE FK,
+--   points_snapshot JSON full immutable published point set, created_by, created_at)
+-- point_revision_batches(study_id, batch_no UNIQUE(study_id,batch_no), device_id,
+--   base_version, published_version NULL, status accepted|rejected, payload_hash sha256,
+--   change_count, conflict_detail JSON NULL, created_by, created_at)
+-- spectrum_runs gains source_version INTEGER NULL; each run copies one complete
+-- published point_versions snapshot into source_snapshot at queue time.
+-- Backfill: existing studies receive point_versions v1 from current traverse_points.
+-- Numeric mappings keep Double(asdecimal=False).
